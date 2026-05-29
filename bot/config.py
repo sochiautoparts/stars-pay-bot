@@ -66,6 +66,16 @@ class Config:
                 },
                 "prefix": "DVB",
             },
+            "repokit": {
+                "name": "RepoKit Pro",
+                "description": "30+ шаблонов проектов: Next.js, FastAPI, Go, Rust, Flutter... CI/CD, Docker, тесты — всё включено",
+                "plans": {
+                    "month": {"price": 149, "label": "1 месяц", "days": 30},
+                    "year": {"price": 999, "label": "1 год", "days": 365},
+                    "lifetime": {"price": 2999, "label": "Навсегда", "days": 0},
+                },
+                "prefix": "RPK",
+            },
         }
 
     @property
