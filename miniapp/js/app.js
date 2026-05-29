@@ -25,6 +25,16 @@
                 year: { price: 999, label: "1 год", days: 365 },
                 lifetime: { price: 2999, label: "Навсегда", days: 0 },
             }
+        },
+        "devbadge": {
+            name: "DevBadge Pro",
+            icon: "🎨",
+            description: "Динамические SVG-бейджи для GitHub — анимации, кастомные темы",
+            plans: {
+                month: { price: 149, label: "1 месяц", days: 30 },
+                year: { price: 999, label: "1 год", days: 365 },
+                lifetime: { price: 2999, label: "Навсегда", days: 0 },
+            }
         }
     };
 
