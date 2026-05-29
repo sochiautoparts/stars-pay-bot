@@ -55,6 +55,12 @@ async def main():
     dp = Dispatcher()
     dp.include_router(router)
 
+    # Add error handling middleware
+    from bot.middleware import ErrorHandlingMiddleware
+    dp.message.middleware(ErrorHandlingMiddleware())
+    dp.callback_query.middleware(ErrorHandlingMiddleware())
+    dp.pre_checkout_query.middleware(ErrorHandlingMiddleware())
+
     # Start bot
     logger.info("Starting StarsPay Bot polling...")
     try:
