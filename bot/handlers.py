@@ -1,6 +1,8 @@
 """StarsPay Bot Handlers — Telegram Stars payment processing."""
 import time
+import uuid
 import logging
+import aiosqlite
 from aiogram import Router, F, Bot
 from aiogram.types import (
     Message, CallbackQuery, PreCheckoutQuery,
@@ -78,7 +80,7 @@ async def cmd_start(message: Message):
 
     # Process referral
     if ref_code and ref_code != user.get("referral_code"):
-        async with db.db_path, aiosqlite.connect(db.db_path) as conn:
+        async with aiosqlite.connect(db.db_path) as conn:
             conn.row_factory = aiosqlite.Row
             cursor = await conn.execute(
                 "SELECT user_id FROM users WHERE referral_code = ?", (ref_code,)
@@ -513,6 +515,5 @@ async def check_user_licenses_db(user_id: int) -> list:
     return licenses
 
 
-# Monkey-patch for the callback
-import aiosqlite
+# Patch the database method
 db.check_user_licenses = check_user_licenses_db

@@ -2,6 +2,8 @@
 import logging
 import asyncio
 import sys
+import os
+import threading
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
@@ -17,6 +19,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def run_api_server():
+    """Run Flask API server in a separate thread."""
+    app = create_api_app()
+    port = int(os.getenv("PORT", config.api_port))  # Render uses PORT env var
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+
+
 async def main():
     """Run bot and API server."""
     if not config.is_configured:
@@ -26,6 +35,15 @@ async def main():
     # Initialize database
     await db.init()
     logger.info("Database initialized")
+
+    # Start API server in background thread
+    api_thread = threading.Thread(target=run_api_server, daemon=True)
+    api_thread.start()
+    api_port = int(os.getenv("PORT", config.api_port))
+    logger.info(f"API server starting on port {api_port}")
+
+    # Give API server time to start
+    await asyncio.sleep(1)
 
     # Create bot
     bot = Bot(
@@ -37,17 +55,8 @@ async def main():
     dp = Dispatcher()
     dp.include_router(router)
 
-    # Start API server in background
-    api_app = create_api_app()
-    runner = asyncio.create_task(
-        asyncio.to_thread(
-            lambda: api_app.run(host="0.0.0.0", port=config.api_port)
-        )
-    )
-    logger.info(f"API server starting on port {config.api_port}")
-
     # Start bot
-    logger.info("Starting StarsPay Bot...")
+    logger.info("Starting StarsPay Bot polling...")
     try:
         await dp.start_polling(bot)
     finally:
