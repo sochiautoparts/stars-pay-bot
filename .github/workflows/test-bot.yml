@@ -3,12 +3,9 @@ name: Test Bot Code
 on:
   push:
     branches: [main]
-    paths:
-      - 'bot/**'
-      - 'api/**'
-      - 'requirements.txt'
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test:
