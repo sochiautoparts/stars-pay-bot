@@ -1,6 +1,8 @@
 # 💎 StarsPay Bot
 
-**Универсальная платформа оплаты через Telegram Stars** — принимайте платежи для любых GitHub проектов.
+**Универсальная платформа оплаты через Telegram Stars** — полностью бесплатно, на GitHub.
+
+> 🆓 **Никаких внешних сервисов!** Бот работает 24/7 через GitHub Actions (бесплатно для публичных репозиториев).
 
 ## 🌟 Возможности
 
@@ -8,120 +10,105 @@
 - 📦 **Мульти-проекты** — один бот для оплаты нескольких проектов
 - 🔑 **Лицензионные ключи** — автоматическая генерация и проверка
 - 🌐 **Mini App** — красивый веб-интерфейс на GitHub Pages
-- 🔗 **REST API** — проверка лицензий из ваших проектов
+- 🔗 **Публичный API** — проверка лицензий через GitHub (без сервера!)
 - 👥 **Реферальная программа** — бонусы за приглашения
 - 👑 **Админ-панель** — статистика и управление
+- 🆓 **Полностью бесплатно** — работает на GitHub Actions
 
-## 🚀 Быстрый старт — Deploy на Render.com
+## 🏗 Как это работает
 
-**Render.com** — бесплатный хостинг для бота (24/7). Деплой за 3 минуты:
+```
+┌─────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│  Пользователь │───▶│  Telegram Bot     │───▶│  GitHub Actions   │
+│  в Telegram  │◀───│  @allstarspay_bot │◀───│  (каждые 5 мин)   │
+└─────────────┘    └──────────────────┘    └──────────────────┘
+                          │                         │
+                     Оплата Stars           Обработка платежей
+                     Генерация ключа         SQLite + Cache
+                                                    │
+                                            ┌───────▼──────────┐
+                                            │  licenses.json    │
+                                            │  (в репозитории)  │
+                                            └───────┬──────────┘
+                                                    │
+                    ┌──────────────────┐    ┌───────▼──────────┐
+                    │  GitMoji AI      │◀───│  raw.githubusercontent.com  │
+                    │  (проверка ключа)│    │  (публичный API)  │
+                    └──────────────────┘    └──────────────────┘
+```
 
-### Шаг 1: Регистрация
-1. Перейдите на [render.com](https://render.com)
-2. Зарегистрируйтесь через GitHub
+**Весь цикл:**
+1. Пользователь пишет боту `/start` → видит проекты и тарифы
+2. Выбирает тариф → оплачивает Telegram Stars
+3. Бот генерирует лицензионный ключ → отправляет в чат
+4. Ключ сохраняется в `data/licenses.json` в репозитории
+5. GitMoji AI проверяет ключ через публичный URL на GitHub
 
-### Шаг 2: Создание сервиса
-1. Нажмите **New** → **Web Service**
-2. Подключите репозиторий `sochiautoparts/stars-pay-bot`
-3. Или нажмите кнопку:
-   [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sochiautoparts/stars-pay-bot)
+## 🚀 Настройка (один раз)
 
-### Шаг 3: Настройка переменных
-Установите следующие **Environment Variables**:
+### 1. Секреты GitHub
 
-| Переменная | Значение |
-|-----------|----------|
+В репозитории `stars-pay-bot` → Settings → Secrets and variables → Actions:
+
+| Секрет | Значение |
+|--------|----------|
 | `BOT_TOKEN` | Токен от @BotFather |
 | `ADMIN_IDS` | Ваш Telegram ID |
-| `API_KEYS` | API ключ (например: `sk_starspay_xxx`) |
-| `DATABASE_PATH` | `/opt/render/project/src/data/starspay.db` |
+| `API_KEYS` | API ключ для проверки лицензий |
 
-### Шаг 4: Deploy
-Нажмите **Create Web Service**. Бот запустится автоматически!
+### 2. Подключение Mini App
 
-## 🌐 Mini App
-
-Mini App доступен по адресу: **https://sochiautoparts.github.io/stars-pay-bot/**
-
-### Подключение к боту:
 1. Откройте **@BotFather**
 2. Отправьте `/newapp`
 3. Выберите **@allstarspay_bot**
-4. Укажите:
-   - **Title**: `StarsPay`
-   - **Description**: `Магазин подписок`
-   - **URL**: `https://sochiautoparts.github.io/stars-pay-bot/`
+4. Укажите URL: `https://sochiautoparts.github.io/stars-pay-bot/`
 
-## 🔗 REST API
+### 3. Всё! Бот запускается автоматически каждые 5 минут.
 
-После деплоя на Render ваш API будет доступен по адресу:
-`https://starspay-bot.onrender.com` (или ваш кастомный URL)
+## 🔗 Проверка лицензий (без сервера!)
 
-### Проверка лицензии
-
-```bash
-curl -X POST https://starspay-bot.onrender.com/api/v1/verify \
-  -H "X-API-Key: ваш_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{"key": "SP-GMA-A1B2-C3D4"}'
+Licenses хранятся в публичном файле:
+```
+https://raw.githubusercontent.com/sochiautoparts/stars-pay-bot/main/data/licenses.json
 ```
 
-Ответ:
-```json
-{
-  "valid": true,
-  "project": "gitmoji-ai",
-  "plan": "month",
-  "expires_at": 1735689600,
-  "is_lifetime": false
-}
-```
-
-### Проверка пользователя
-
-```bash
-curl -X POST https://starspay-bot.onrender.com/api/v1/check \
-  -H "X-API-Key: ваш_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": 12345, "project": "gitmoji-ai"}'
-```
-
-### Список проектов
-
-```bash
-curl https://starspay-bot.onrender.com/api/v1/projects
-```
-
-## 🔧 Интеграция с проектами
-
-### Python (GitMoji AI)
+### Python (в любом проекте)
 
 ```python
-import requests
+import hashlib, requests, time
 
-STARSPAY_API = "https://starspay-bot.onrender.com"
-STARSPAY_KEY = "ваш_api_key"
-
-def check_license(key: str) -> bool:
-    resp = requests.post(
-        f"{STARSPAY_API}/api/v1/verify",
-        headers={"X-API-Key": STARSPAY_KEY},
-        json={"key": key}
-    )
-    return resp.json().get("valid", False)
+def verify_license(key: str) -> bool:
+    """Проверка лицензии через GitHub — бесплатно, без сервера."""
+    url = "https://raw.githubusercontent.com/sochiautoparts/stars-pay-bot/main/data/licenses.json"
+    data = requests.get(url, timeout=10).json()
+    key_hash = hashlib.sha256(key.encode()).hexdigest()[:16]
+    for lic in data.get("licenses", []):
+        if lic.get("key_hash") == key_hash and lic.get("active"):
+            if lic.get("expires_at", 0) > 0 and time.time() > lic["expires_at"]:
+                return False
+            return True
+    return False
 ```
 
 ### GitHub Action
 
 ```yaml
 - name: Verify License
-  env:
-    LICENSE_KEY: ${{ secrets.LICENSE_KEY }}
   run: |
-    VALID=$(curl -s -X POST https://starspay-bot.onrender.com/api/v1/verify \
-      -H "X-API-Key: ${{ secrets.STARSPAY_API_KEY }}" \
-      -H "Content-Type: application/json" \
-      -d "{\"key\": \"$LICENSE_KEY\"}" | jq -r '.valid')
+    KEY_HASH=$(echo -n "$LICENSE_KEY" | sha256sum | cut -c1-16)
+    DATA=$(curl -s https://raw.githubusercontent.com/sochiautoparts/stars-pay-bot/main/data/licenses.json)
+    VALID=$(echo "$DATA" | python3 -c "
+    import sys, json, time
+    data = json.load(sys.stdin)
+    key_hash = '$KEY_HASH'
+    for lic in data.get('licenses', []):
+        if lic.get('key_hash') == key_hash and lic.get('active'):
+            if lic.get('expires_at', 0) > 0 and time.time() > lic['expires_at']:
+                continue
+            print('true')
+            sys.exit(0)
+    print('false')
+    ")
     [ "$VALID" = "true" ] || exit 1
 ```
 
@@ -135,26 +122,38 @@ def check_license(key: str) -> bool:
 | `/genkey project\|plan\|user_id` | Создать ключ вручную |
 | `/addapikey project\|описание` | Создать API ключ |
 
+## 💰 Продукты по умолчанию
+
+| Проект | Месяц | Год | Навсегда |
+|--------|-------|-----|----------|
+| GitMoji AI Pro | 149 ⭐ | 999 ⭐ | 2999 ⭐ |
+
 ## 📦 Структура проекта
 
 ```
 stars-pay-bot/
 ├── bot/              # Telegram Bot (aiogram 3.x)
-│   ├── main.py       # Точка входа
+│   ├── main.py       # Точка входа (с auto-stop)
 │   ├── handlers.py   # Обработчики команд и платежей
 │   ├── middleware.py  # Обработка ошибок
 │   ├── database.py   # SQLite база данных
-│   └── config.py     # Конфигурация
+│   └── config.py     # Конфигурация (env vars)
 ├── api/              # REST API (Flask)
 │   └── server.py     # Сервер проверки лицензий
+├── data/             # Публичные данные
+│   └── licenses.json # Лицензии (публичный API)
 ├── miniapp/          # Mini App (GitHub Pages)
 │   ├── index.html
 │   ├── css/style.css
 │   └── js/app.js
-├── .github/workflows/ # CI/CD
+├── .github/workflows/
+│   ├── run-bot.yml   # 🤖 24/7 бот (каждые 5 мин)
+│   ├── deploy.yml    # 🌐 Deploy Mini App (Pages)
+│   ├── test-bot.yml  # 🧪 CI тесты
+│   └── deploy-bot.yml # 🚀 Render deploy (опция)
 ├── Dockerfile
 ├── docker-compose.yml
-├── render.yaml       # Render.com деплой
+├── render.yaml       # Альтернатива: Render.com деплой
 └── requirements.txt
 ```
 
@@ -165,7 +164,7 @@ stars-pay-bot/
 | `BOT_TOKEN` | Токен Telegram бота | ✅ Да |
 | `ADMIN_IDS` | ID администраторов | ✅ Да |
 | `API_KEYS` | API ключи (через запятую) | ✅ Да |
-| `PORT` | Порт REST API (Render) | Нет (8080) |
+| `BOT_RUN_SECONDS` | Время работы бота за сессию | Нет (240) |
 | `DATABASE_PATH` | Путь к БД SQLite | Нет |
 | `MINIAPP_URL` | URL Mini App | Нет |
 
