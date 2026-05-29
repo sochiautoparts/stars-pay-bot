@@ -166,7 +166,7 @@
                     <div class="plan-price">${plan.price} <span class="stars">⭐</span></div>
                     <div class="plan-per-day">${perDayText}</div>
                     <button class="btn btn-primary btn-buy" onclick="buyProduct('${projectId}', '${planId}')">
-                        💳 Перейти к оплате
+                        Купить за ${plan.price} ⭐
                     </button>
                 </div>
             `;
@@ -179,9 +179,7 @@
                 <p style="color:var(--tg-theme-hint-color); font-size:14px;">${product.description}</p>
             </div>
             ${plansHTML}
-            <div class="buy-hint">
-                💡 Нажмите «Перейти к оплате» — бот откроет форму оплаты Telegram Stars
-            </div>
+
         `;
 
         switchView('project');
@@ -194,10 +192,11 @@
         const deepLink = `https://t.me/allstarspay_bot?start=buy_${projectId}_${planId}`;
 
         if (tg) {
-            // Inside Telegram Web App: open bot chat directly
+            // Open bot chat — this sends invoice automatically
             tg.openTelegramLink(deepLink);
+            // Close MiniApp so user sees the bot chat with invoice
+            setTimeout(() => { tg.close(); }, 400);
         } else {
-            // Outside Telegram: open in browser
             window.open(deepLink, '_blank');
         }
     };
