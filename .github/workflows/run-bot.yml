@@ -1,47 +1,29 @@
-name: Run StarsPay Bot (Scheduled)
+name: Deploy Bot to Render
 
 on:
-  schedule:
-    # Run every 5 minutes to keep the bot alive
-    - cron: '*/5 * * * *'
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'bot/**'
+      - 'api/**'
+      - 'requirements.txt'
+      - 'Dockerfile'
 
 jobs:
-  run-bot:
+  deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Initialize database
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
-          API_KEYS: ${{ secrets.API_KEYS }}
-          DATABASE_PATH: starspay.db
+      - name: Trigger Render Deploy Hook
+        if: ${{ secrets.RENDER_DEPLOY_HOOK != '' }}
         run: |
-          python -c "
-          import asyncio
-          from bot.database import db
-          asyncio.run(db.init())
-          print('Database initialized')
-          "
+          curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+          echo "Deploy hook triggered"
 
-      - name: Run bot (5 min session)
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
-          API_KEYS: ${{ secrets.API_KEYS }}
-          DATABASE_PATH: starspay.db
-          MINIAPP_URL: https://sochiautoparts.github.io/stars-pay-bot/
+      - name: Render Deploy Info
         run: |
-          timeout 270 python -m bot.main || true
-          echo "Bot session completed"
+          echo "To deploy on Render.com:"
+          echo "1. Go to https://render.com/deploy?repo=https://github.com/sochiautoparts/stars-pay-bot"
+          echo "2. Or set RENDER_DEPLOY_HOOK secret to trigger auto-deploy"
