@@ -1,19 +1,32 @@
 """StarsPay Bot Configuration."""
 import os
-import yaml
+import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Config:
-    """Bot configuration loaded from environment or config.yaml."""
+    """Bot configuration loaded from environment variables."""
 
     def __init__(self):
+        # Required: must be set via environment variables
         self.bot_token = os.getenv("BOT_TOKEN", "")
-        self.admin_ids = [
-            int(x) for x in os.getenv("ADMIN_IDS", "265070804").split(",") if x.strip()
-        ]
-        self.api_port = int(os.getenv("API_PORT", "8080"))
-        self.api_keys_str = os.getenv("API_KEYS", "starspay-default-key-change-me")
-        self.api_keys = [k.strip() for k in self.api_keys_str.split(",") if k.strip()]
+        admin_ids_str = os.getenv("ADMIN_IDS", "")
+        if not admin_ids_str:
+            logger.warning("ADMIN_IDS not set — admin commands will be unavailable")
+            self.admin_ids = []
+        else:
+            self.admin_ids = [int(x) for x in admin_ids_str.split(",") if x.strip()]
+
+        self.api_port = int(os.getenv("PORT", os.getenv("API_PORT", "8080")))
+        api_keys_str = os.getenv("API_KEYS", "")
+        if not api_keys_str:
+            logger.warning("API_KEYS not set — API endpoints will reject all requests")
+            self.api_keys = []
+        else:
+            self.api_keys = [k.strip() for k in api_keys_str.split(",") if k.strip()]
+
         self.database_path = os.getenv("DATABASE_PATH", "starspay.db")
         self.miniapp_url = os.getenv(
             "MINIAPP_URL",
@@ -26,10 +39,12 @@ class Config:
         """Load products from env or defaults."""
         products_str = os.getenv("PRODUCTS", "")
         if products_str:
-            import json
-            return json.loads(products_str)
+            try:
+                return json.loads(products_str)
+            except json.JSONDecodeError:
+                logger.error("PRODUCTS env var is not valid JSON")
 
-        # Default products for multiple projects
+        # Default product catalog
         return {
             "gitmoji-ai": {
                 "name": "GitMoji AI Pro",
@@ -41,29 +56,11 @@ class Config:
                 },
                 "prefix": "GMA",
             },
-            "code-review": {
-                "name": "Code Review Bot Pro",
-                "description": "AI-ревью кода с детальными suggestions",
-                "plans": {
-                    "month": {"price": 99, "label": "1 месяц", "days": 30},
-                    "year": {"price": 699, "label": "1 год", "days": 365},
-                },
-                "prefix": "CRB",
-            },
-            "dev-tools": {
-                "name": "Dev Tools Suite",
-                "description": "Набор инструментов для разработчика",
-                "plans": {
-                    "month": {"price": 199, "label": "1 месяц", "days": 30},
-                    "lifetime": {"price": 4999, "label": "Навсегда", "days": 0},
-                },
-                "prefix": "DTS",
-            },
         }
 
     @property
     def is_configured(self) -> bool:
-        return bool(self.bot_token)
+        return bool(self.bot_token) and bool(self.admin_ids)
 
 
 config = Config()

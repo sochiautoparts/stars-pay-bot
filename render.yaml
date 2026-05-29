@@ -8,17 +8,15 @@ services:
       - key: BOT_TOKEN
         sync: false
       - key: ADMIN_IDS
-        value: 265070804
+        sync: false
       - key: API_KEYS
         sync: false
-      - key: API_PORT
+      - key: PORT
         value: 8080
       - key: DATABASE_PATH
         value: /opt/render/project/src/data/starspay.db
       - key: MINIAPP_URL
         value: https://sochiautoparts.github.io/stars-pay-bot/
-      - key: PYTHON_VERSION
-        value: 3.12.0
     disk:
       name: starspay-data
       mountPath: /opt/render/project/src/data
