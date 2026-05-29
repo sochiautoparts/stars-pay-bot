@@ -151,7 +151,6 @@
         const product = PRODUCTS[projectId];
         if (!product) return;
 
-        // Determine popular plan (year or month)
         const planIds = Object.keys(product.plans);
         const popularId = product.plans.year ? 'year' : planIds[Math.floor(planIds.length / 2)];
 
@@ -166,8 +165,8 @@
                     <div class="plan-name">${plan.label}</div>
                     <div class="plan-price">${plan.price} <span class="stars">⭐</span></div>
                     <div class="plan-per-day">${perDayText}</div>
-                    <button class="btn btn-primary" onclick="buyProduct('${projectId}', '${planId}')">
-                        Купить за ${plan.price} ⭐
+                    <button class="btn btn-primary btn-buy" onclick="buyProduct('${projectId}', '${planId}')">
+                        💳 Перейти к оплате
                     </button>
                 </div>
             `;
@@ -180,28 +179,27 @@
                 <p style="color:var(--tg-theme-hint-color); font-size:14px;">${product.description}</p>
             </div>
             ${plansHTML}
+            <div class="buy-hint">
+                💡 Нажмите «Перейти к оплате» — бот откроет форму оплаты Telegram Stars
+            </div>
         `;
 
         switchView('project');
     }
 
     // ─── Buy Product ───
+    // Opens the bot chat with a deep link that triggers invoice
 
     window.buyProduct = function(projectId, planId) {
-        if (!tg) {
-            window.open(`https://t.me/allstarspay_bot?start=buy_${projectId}_${planId}`, '_blank');
-            return;
+        const deepLink = `https://t.me/allstarspay_bot?start=buy_${projectId}_${planId}`;
+
+        if (tg) {
+            // Inside Telegram Web App: open bot chat directly
+            tg.openTelegramLink(deepLink);
+        } else {
+            // Outside Telegram: open in browser
+            window.open(deepLink, '_blank');
         }
-
-        tg.sendData(JSON.stringify({
-            action: 'buy',
-            project: projectId,
-            plan: planId
-        }));
-
-        setTimeout(() => {
-            tg.openTelegramLink(`https://t.me/allstarspay_bot?start=buy_${projectId}_${planId}`);
-        }, 500);
     };
 
     // ─── Switch Views ───
