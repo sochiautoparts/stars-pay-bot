@@ -1,0 +1,47 @@
+name: Run StarsPay Bot (Scheduled)
+
+on:
+  schedule:
+    # Run every 5 minutes to keep the bot alive
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Initialize database
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+          API_KEYS: ${{ secrets.API_KEYS }}
+          DATABASE_PATH: starspay.db
+        run: |
+          python -c "
+          import asyncio
+          from bot.database import db
+          asyncio.run(db.init())
+          print('Database initialized')
+          "
+
+      - name: Run bot (5 min session)
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+          API_KEYS: ${{ secrets.API_KEYS }}
+          DATABASE_PATH: starspay.db
+          MINIAPP_URL: https://sochiautoparts.github.io/stars-pay-bot/
+        run: |
+          timeout 270 python -m bot.main || true
+          echo "Bot session completed"
