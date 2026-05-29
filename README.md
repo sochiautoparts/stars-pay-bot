@@ -16,15 +16,16 @@
 
 ### Развертывание на Render.com (бесплатно)
 
-1. Нажмите кнопку ниже:
-   [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+1. Зарегистрируйтесь на [Render.com](https://render.com) (бесплатно)
+2. Нажмите **Deploy to Render**:
+   [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sochiautoparts/stars-pay-bot)
 
-2. Установите переменные окружения:
+3. Установите переменные окружения:
    - `BOT_TOKEN` — токен бота от @BotFather
    - `ADMIN_IDS` — ваш Telegram ID
    - `API_KEYS` — ключи для REST API (через запятую)
 
-3. Готово! Бот запущен 24/7.
+4. Готово! Бот запущен 24/7.
 
 ### Локально с Docker
 
