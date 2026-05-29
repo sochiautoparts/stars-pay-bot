@@ -1,17 +1,106 @@
 """StarsPay REST API — License verification for external projects."""
 import json
 import time
+import asyncio
 import logging
+import sqlite3
 from flask import Flask, request, jsonify
 from bot.config import config
 from bot.database import db
 
 logger = logging.getLogger(__name__)
 
+# Track if DB is initialized
+_db_initialized = False
+
+
+def _ensure_db():
+    """Ensure database is initialized (sync version for Flask)."""
+    global _db_initialized
+    if _db_initialized:
+        return
+    try:
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(db.init())
+        loop.close()
+        _db_initialized = True
+        logger.info("Database initialized for API server")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+
+
+def _sync_verify_license(key: str) -> dict:
+    """Verify a license key using sync sqlite3 (for Flask)."""
+    _ensure_db()
+    try:
+        conn = sqlite3.connect(config.database_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute("SELECT * FROM licenses WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return {"valid": False, "reason": "key_not_found"}
+
+        license_data = dict(row)
+        if not license_data["active"]:
+            return {"valid": False, "reason": "deactivated"}
+
+        # Check expiration (0 = lifetime)
+        if license_data["expires_at"] > 0 and time.time() > license_data["expires_at"]:
+            conn = sqlite3.connect(config.database_path)
+            conn.execute("UPDATE licenses SET active = 0 WHERE key = ?", (key,))
+            conn.commit()
+            conn.close()
+            return {"valid": False, "reason": "expired"}
+
+        return {"valid": True, "license": license_data}
+    except Exception as e:
+        logger.error(f"License verification error: {e}")
+        return {"valid": False, "reason": "error"}
+
+
+def _sync_check_user_license(user_id: int, project: str) -> dict:
+    """Check if user has active license (sync sqlite3 for Flask)."""
+    _ensure_db()
+    try:
+        conn = sqlite3.connect(config.database_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(
+            "SELECT * FROM licenses WHERE user_id = ? AND project = ? AND active = 1",
+            (user_id, project)
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return {"has_license": False}
+
+        license_data = dict(row)
+        if license_data["expires_at"] > 0 and time.time() > license_data["expires_at"]:
+            conn = sqlite3.connect(config.database_path)
+            conn.execute(
+                "UPDATE licenses SET active = 0 WHERE user_id = ? AND project = ?",
+                (user_id, project)
+            )
+            conn.commit()
+            conn.close()
+            return {"has_license": False, "reason": "expired"}
+
+        return {"has_license": True, "license": license_data}
+    except Exception as e:
+        logger.error(f"User license check error: {e}")
+        return {"has_license": False, "reason": "error"}
+
 
 def create_api_app() -> Flask:
     """Create and configure Flask API application."""
     app = Flask(__name__)
+
+    # Initialize DB on first request
+    @app.before_request
+    def init_db():
+        _ensure_db()
 
     @app.route("/api/v1/health", methods=["GET"])
     def health():
@@ -33,7 +122,7 @@ def create_api_app() -> Flask:
         if not license_key:
             return jsonify({"error": "missing_key"}), 400
 
-        result = asyncio_run(db.verify_license(license_key))
+        result = _sync_verify_license(license_key)
 
         if result["valid"]:
             lic = result["license"]
@@ -64,7 +153,7 @@ def create_api_app() -> Flask:
         if not user_id:
             return jsonify({"error": "missing_user_id"}), 400
 
-        result = asyncio_run(db.check_user_license(int(user_id), project))
+        result = _sync_check_user_license(int(user_id), project)
 
         if result.get("has_license"):
             lic = result["license"]
@@ -94,19 +183,3 @@ def create_api_app() -> Flask:
         return jsonify({"projects": projects})
 
     return app
-
-
-def asyncio_run(coro):
-    """Run async coroutine from sync context."""
-    import asyncio
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result(timeout=10)
-        else:
-            return loop.run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
