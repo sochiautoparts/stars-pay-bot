@@ -28,9 +28,70 @@
         }
     };
 
+    // Partner Mini Apps
+    const PARTNERS = [
+        {
+            name: "РосЗап — Автозапчасти",
+            icon: "🛠",
+            url: "https://t.me/rosskozap_bot/zap",
+            desc: "Огромное наличие автозапчастей",
+            tag: "Авто"
+        },
+        {
+            name: "Шины и Диски 24",
+            icon: "🛞",
+            url: "https://t.me/tires24_bot/tires",
+            desc: "Шины и диски с доставкой",
+            tag: "Авто"
+        },
+        {
+            name: "ЛУКОЙЛ Магазин",
+            icon: "🛢",
+            url: "https://t.me/Lukoiloil_bot/oil",
+            desc: "Масла и товары ЛУКОЙЛ с доставкой",
+            tag: "Авто"
+        },
+        {
+            name: "Автокод Про",
+            icon: "🔍",
+            url: "https://t.me/autokod_pro_bot/pro",
+            desc: "Проверка авто по базам ГИБДД, ДТП, залогов",
+            tag: "Авто"
+        },
+        {
+            name: "КолесоПро",
+            icon: "🔩",
+            url: "https://t.me/kolesopro_bot/pro",
+            desc: "Продажа шин и дисков",
+            tag: "Авто"
+        },
+        {
+            name: "Recars — Прокат авто",
+            icon: "🌍",
+            url: "https://t.me/recars_bot/pro",
+            desc: "Прокат автомобилей по всему миру",
+            tag: "Путешествия"
+        },
+        {
+            name: "Activ Global",
+            icon: "⛷",
+            url: "https://t.me/activglobal_bot/pro",
+            desc: "Техника для активного отдыха и спорта",
+            tag: "Спорт"
+        },
+        {
+            name: "Авиабилеты",
+            icon: "✈️",
+            url: "https://t.me/bilet_avia_bot/pro",
+            desc: "Быстрый поиск дешёвых авиабилетов",
+            tag: "Путешествия"
+        }
+    ];
+
     // DOM elements
     const projectsList = document.getElementById('projects-list');
     const myLicenses = document.getElementById('my-licenses');
+    const partnersList = document.getElementById('partners-list');
     const projectsView = document.getElementById('projects-view');
     const projectView = document.getElementById('project-view');
     const successView = document.getElementById('success-view');
@@ -52,6 +113,35 @@
                 <div class="card-price">от ${minPrice} ⭐</div>
             `;
             projectsList.appendChild(card);
+        });
+    }
+
+    // ─── Render Partners ───
+
+    function renderPartners() {
+        partnersList.innerHTML = '';
+        PARTNERS.forEach(partner => {
+            const card = document.createElement('a');
+            card.className = 'partner-card';
+            card.href = partner.url;
+            card.target = '_blank';
+            card.onclick = function(e) {
+                e.preventDefault();
+                if (tg) {
+                    tg.openTelegramLink(partner.url);
+                } else {
+                    window.open(partner.url, '_blank');
+                }
+            };
+            card.innerHTML = `
+                <div class="partner-icon">${partner.icon}</div>
+                <div class="partner-info">
+                    <div class="partner-name">${partner.name}</div>
+                    <div class="partner-desc">${partner.desc}</div>
+                </div>
+                <span class="partner-tag">${partner.tag}</span>
+            `;
+            partnersList.appendChild(card);
         });
     }
 
@@ -99,19 +189,16 @@
 
     window.buyProduct = function(projectId, planId) {
         if (!tg) {
-            // Fallback: open bot with deep link
             window.open(`https://t.me/allstarspay_bot?start=buy_${projectId}_${planId}`, '_blank');
             return;
         }
 
-        // Send data to bot via Telegram Web App
         tg.sendData(JSON.stringify({
             action: 'buy',
             project: projectId,
             plan: planId
         }));
 
-        // Also try opening bot with deep link as fallback
         setTimeout(() => {
             tg.openTelegramLink(`https://t.me/allstarspay_bot?start=buy_${projectId}_${planId}`);
         }, 500);
@@ -153,7 +240,6 @@
     // ─── Handle Telegram Web App Events ───
 
     if (tg) {
-        // Main button
         tg.MainButton.setParams({
             text: '🛒 Открыть магазин',
             color: '#7c3aed',
@@ -164,7 +250,6 @@
             tg.MainButton.hide();
         });
 
-        // Handle data from bot
         tg.onEvent('dataReceived', (event) => {
             try {
                 const data = JSON.parse(event.data);
@@ -176,15 +261,14 @@
             }
         });
 
-        // Show Main Button if on success view
         tg.MainButton.show();
     }
 
     // ─── Initialize ───
 
     renderProjects();
+    renderPartners();
 
-    // Try to load user's licenses if authenticated
     if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
         const user = tg.initDataUnsafe.user;
         myLicenses.innerHTML = `

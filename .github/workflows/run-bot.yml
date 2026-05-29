@@ -2,14 +2,14 @@ name: StarsPay Bot — 24/7 Runner
 
 on:
   schedule:
-    # Run every 6 hours to restart bot
-    - cron: '0 */6 * * *'
+    # Restart every 5 hours (6h max run, 5h gives 1h overlap)
+    - cron: '0 */5 * * *'
   workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # 6 hours max
+    timeout-minutes: 345  # 5h45m — leaves buffer before next cron
 
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: starspay.db
-          key: starspay-db-v2
+          key: starspay-db-v3
           restore-keys: |
             starspay-db-
 
@@ -38,7 +38,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: data/licenses.json
-          key: licenses-json-v2
+          key: licenses-json-v3
           restore-keys: |
             licenses-json-
 
@@ -50,9 +50,9 @@ jobs:
           DATABASE_PATH: starspay.db
           MINIAPP_URL: ${{ secrets.MINIAPP_URL }}
         run: |
-          echo "Starting bot session at $(date -u)"
+          echo "=== Bot session started at $(date -u) ==="
           python -m bot.main || true
-          echo "Bot session ended at $(date -u)"
+          echo "=== Bot session ended at $(date -u) ==="
 
       - name: Sync licenses to JSON
         if: always()
@@ -120,4 +120,4 @@ jobs:
         if: always()
         with:
           path: starspay.db
-          key: starspay-db-v2-${{ github.run_id }}
+          key: starspay-db-v3-${{ github.run_id }}
