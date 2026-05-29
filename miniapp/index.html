@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>StarsPay — Магазин подписок</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-logo">
+                <span class="logo-icon">💎</span>
+                <span class="logo-text">StarsPay</span>
+            </div>
+            <div class="header-balance" id="balance" style="display:none;">
+                ⭐ <span id="balance-amount">0</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main id="main-content">
+            <!-- Projects List -->
+            <div id="projects-view" class="view active">
+                <h2 class="section-title">📦 Выберите проект</h2>
+                <div id="projects-list" class="cards-list"></div>
+
+                <div class="section-divider"></div>
+
+                <h2 class="section-title">🔑 Мои лицензии</h2>
+                <div id="my-licenses" class="cards-list">
+                    <div class="empty-state">
+                        <p>Войдите через Telegram для просмотра лицензий</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Project Detail -->
+            <div id="project-view" class="view">
+                <button class="back-btn" onclick="showProjects()">
+                    ← Назад к проектам
+                </button>
+                <div id="project-detail"></div>
+            </div>
+
+            <!-- Payment Success -->
+            <div id="success-view" class="view">
+                <div class="success-container">
+                    <div class="success-icon">✅</div>
+                    <h2>Оплата прошла успешно!</h2>
+                    <div id="success-details"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>StarsPay © 2025 — Оплата через Telegram Stars</p>
+            <p class="footer-link">
+                <a href="https://github.com/sochiautoparts/stars-pay-bot">GitHub</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

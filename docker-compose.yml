@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  starspay-bot:
+    build: .
+    container_name: starspay-bot
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - ADMIN_IDS=${ADMIN_IDS:-265070804}
+      - API_KEYS=${API_KEYS:-starspay-default-key}
+      - API_PORT=8080
+      - DATABASE_PATH=/app/data/starspay.db
+      - MINIAPP_URL=https://sochiautoparts.github.io/stars-pay-bot/
+    ports:
+      - "8080:8080"
+    volumes:
+      - starspay-data:/app/data
+
+volumes:
+  starspay-data:

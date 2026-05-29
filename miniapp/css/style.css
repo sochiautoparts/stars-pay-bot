@@ -1,0 +1,385 @@
+/* StarsPay Mini App — Telegram Web App Styles */
+:root {
+    --tg-theme-bg-color: #1a1a2e;
+    --tg-theme-text-color: #eaeaea;
+    --tg-theme-hint-color: #8b8b8b;
+    --tg-theme-button-color: #8b5cf6;
+    --tg-theme-button-text-color: #ffffff;
+    --tg-theme-secondary-bg-color: #16213e;
+    --tg-theme-accent-color: #7c3aed;
+
+    --card-bg: #1e293b;
+    --card-border: #334155;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --premium-gradient: linear-gradient(135deg, #7c3aed 0%, #2563eb 50%, #06b6d4 100%);
+    --radius: 16px;
+    --radius-sm: 10px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--tg-theme-bg-color);
+    color: var(--tg-theme-text-color);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+#app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 16px 100px;
+}
+
+/* Header */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0 16px;
+    position: sticky;
+    top: 0;
+    background: var(--tg-theme-bg-color);
+    z-index: 100;
+}
+
+.header-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-icon {
+    font-size: 28px;
+}
+
+.logo-text {
+    font-size: 22px;
+    font-weight: 700;
+    background: var(--premium-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.header-balance {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* Section */
+.section-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 14px;
+    color: var(--tg-theme-text-color);
+}
+
+.section-divider {
+    height: 1px;
+    background: var(--card-border);
+    margin: 28px 0;
+}
+
+/* Views */
+.view {
+    display: none;
+}
+
+.view.active {
+    display: block;
+}
+
+/* Cards */
+.cards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.project-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.project-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--premium-gradient);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.project-card:hover,
+.project-card:active {
+    border-color: var(--tg-theme-button-color);
+    transform: translateY(-1px);
+}
+
+.project-card:hover::before,
+.project-card:active::before {
+    opacity: 1;
+}
+
+.project-card .card-icon {
+    font-size: 32px;
+    margin-bottom: 10px;
+}
+
+.project-card .card-title {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.project-card .card-desc {
+    font-size: 13px;
+    color: var(--tg-theme-hint-color);
+    line-height: 1.4;
+}
+
+.project-card .card-price {
+    margin-top: 12px;
+    font-size: 14px;
+    color: var(--tg-theme-button-color);
+    font-weight: 500;
+}
+
+/* Plan Cards */
+.plan-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 12px;
+    position: relative;
+}
+
+.plan-card.popular {
+    border-color: var(--tg-theme-button-color);
+}
+
+.plan-card.popular::after {
+    content: 'Популярный';
+    position: absolute;
+    top: -1px;
+    right: 16px;
+    background: var(--premium-gradient);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 0 0 8px 8px;
+}
+
+.plan-card .plan-name {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.plan-card .plan-price {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 10px 0;
+}
+
+.plan-card .plan-price .stars {
+    font-size: 20px;
+}
+
+.plan-card .plan-per-day {
+    font-size: 12px;
+    color: var(--tg-theme-hint-color);
+    margin-bottom: 16px;
+}
+
+/* Buttons */
+.btn {
+    display: block;
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background: var(--premium-gradient);
+    color: white;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-secondary {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    color: var(--tg-theme-text-color);
+}
+
+.btn-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.back-btn {
+    background: none;
+    border: none;
+    color: var(--tg-theme-button-color);
+    font-size: 15px;
+    cursor: pointer;
+    padding: 8px 0;
+    margin-bottom: 16px;
+}
+
+/* Success View */
+.success-container {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.success-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+}
+
+.success-container h2 {
+    font-size: 22px;
+    margin-bottom: 20px;
+}
+
+.license-key-box {
+    background: var(--card-bg);
+    border: 2px dashed var(--success-color);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    margin: 16px 0;
+    word-break: break-all;
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--success-color);
+    user-select: all;
+}
+
+/* License Cards */
+.license-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    margin-bottom: 10px;
+}
+
+.license-card .lic-project {
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 4px;
+}
+
+.license-card .lic-key {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--success-color);
+    word-break: break-all;
+    margin-bottom: 4px;
+}
+
+.license-card .lic-expire {
+    font-size: 12px;
+    color: var(--tg-theme-hint-color);
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 24px;
+    color: var(--tg-theme-hint-color);
+    font-size: 14px;
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    padding: 24px 0;
+    color: var(--tg-theme-hint-color);
+    font-size: 12px;
+}
+
+.footer-link a {
+    color: var(--tg-theme-button-color);
+    text-decoration: none;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.project-card, .plan-card {
+    animation: fadeIn 0.3s ease;
+}
+
+/* Copy Button */
+.copy-btn {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    color: var(--tg-theme-text-color);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 8px;
+}
+
+.copy-btn:active {
+    background: var(--card-border);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--card-border);
+    border-radius: 2px;
+}
