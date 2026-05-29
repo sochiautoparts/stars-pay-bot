@@ -1,0 +1,71 @@
+name: Test Bot Code
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bot/**'
+      - 'api/**'
+      - 'requirements.txt'
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Test imports
+        env:
+          BOT_TOKEN: "test_token"
+          ADMIN_IDS: "12345"
+          API_KEYS: "test_api_key"
+        run: |
+          python -c "from bot.config import config; assert config.is_configured"
+          python -c "from bot.database import db; print('DB OK')"
+          python -c "from api.server import create_api_app; app = create_api_app(); print('API OK')"
+          echo "All imports successful!"
+
+      - name: Test API endpoints
+        env:
+          BOT_TOKEN: "test_token"
+          ADMIN_IDS: "12345"
+          API_KEYS: "test_api_key"
+        run: |
+          python -c "
+          from api.server import create_api_app
+          app = create_api_app()
+          with app.test_client() as c:
+              # Health check
+              r = c.get('/api/v1/health')
+              assert r.status_code == 200
+              data = r.get_json()
+              assert data['status'] == 'ok'
+              print('Health check: OK')
+
+              # Verify without key
+              r = c.post('/api/v1/verify', json={'key': 'test'})
+              assert r.status_code == 401
+              print('Auth check: OK')
+
+              # Verify with wrong key
+              r = c.post('/api/v1/verify', headers={'X-API-Key': 'wrong'}, json={'key': 'test'})
+              assert r.status_code == 401
+              print('Wrong key check: OK')
+
+              # Projects list
+              r = c.get('/api/v1/projects')
+              assert r.status_code == 200
+              print('Projects list: OK')
+
+          print('All API tests passed!')
+          "
