@@ -2,14 +2,14 @@ name: StarsPay Bot — 24/7 Runner
 
 on:
   schedule:
-    # Every 5 minutes — continuous coverage
-    - cron: '*/5 * * * *'
+    # Run every 6 hours to restart bot
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 360  # 6 hours max
 
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: starspay.db
-          key: starspay-db-v1
+          key: starspay-db-v2
           restore-keys: |
             starspay-db-
 
@@ -38,24 +38,24 @@ jobs:
         uses: actions/cache@v4
         with:
           path: data/licenses.json
-          key: licenses-json-v1
+          key: licenses-json-v2
           restore-keys: |
             licenses-json-
 
-      - name: Run bot (4 min session)
+      - name: Run bot (full session until timeout)
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
           API_KEYS: ${{ secrets.API_KEYS }}
           DATABASE_PATH: starspay.db
-          MINIAPP_URL: https://sochiautoparts.github.io/stars-pay-bot/
-          BOT_RUN_SECONDS: "240"
+          MINIAPP_URL: ${{ secrets.MINIAPP_URL }}
         run: |
-          echo "Starting bot session at $(date)"
-          timeout 250 python -m bot.main || true
-          echo "Bot session ended at $(date)"
+          echo "Starting bot session at $(date -u)"
+          python -m bot.main || true
+          echo "Bot session ended at $(date -u)"
 
       - name: Sync licenses to JSON
+        if: always()
         env:
           DATABASE_PATH: starspay.db
         run: |
@@ -77,10 +77,9 @@ jobs:
           licenses = []
           for row in cursor.fetchall():
               d = dict(row)
-              # Store hash instead of plain key for security
               key = d.pop('key', '')
               d['key_hash'] = hashlib.sha256(key.encode()).hexdigest()[:16]
-              d['key_prefix'] = key[:7] + '...'  # SP-GMA-... for display
+              d['key_prefix'] = key[:7] + '...'
               licenses.append(d)
 
           output = {
@@ -100,6 +99,7 @@ jobs:
           "
 
       - name: Commit licenses to repo
+        if: always()
         run: |
           if [ ! -f data/licenses.json ]; then
             echo "No licenses.json to commit"
@@ -120,4 +120,4 @@ jobs:
         if: always()
         with:
           path: starspay.db
-          key: starspay-db-v1-${{ github.run_id }}
+          key: starspay-db-v2-${{ github.run_id }}

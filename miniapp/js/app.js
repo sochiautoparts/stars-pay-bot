@@ -25,24 +25,6 @@
                 year: { price: 999, label: "1 год", days: 365 },
                 lifetime: { price: 2999, label: "Навсегда", days: 0 },
             }
-        },
-        "code-review": {
-            name: "Code Review Bot Pro",
-            icon: "🔍",
-            description: "AI-ревью кода с детальными suggestions",
-            plans: {
-                month: { price: 99, label: "1 месяц", days: 30 },
-                year: { price: 699, label: "1 год", days: 365 },
-            }
-        },
-        "dev-tools": {
-            name: "Dev Tools Suite",
-            icon: "🛠",
-            description: "Набор инструментов для разработчика",
-            plans: {
-                month: { price: 199, label: "1 месяц", days: 30 },
-                lifetime: { price: 4999, label: "Навсегда", days: 0 },
-            }
         }
     };
 

@@ -95,7 +95,9 @@ async def cmd_start(message: Message):
         if len(parts) >= 3:
             project_id = parts[1]
             plan_id = parts[2]
-            await _send_invoice(message, project_id, plan_id)
+            from aiogram import Bot as AiogramBot
+            bot = AiogramBot(token=config.bot_token)
+            await _send_invoice(message, project_id, plan_id, bot)
             return
 
     text = (
