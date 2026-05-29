@@ -10,7 +10,7 @@ from aiogram.types import (
     LabeledPrice, WebAppInfo,
 )
 from aiogram.filters import Command, CommandStart
-from aiogram.enums import Currency
+# Stars currency is "XTR" string (not in aiogram Currency enum)
 from bot.config import config
 from bot.database import db
 
@@ -172,7 +172,7 @@ async def cb_buy(callback: CallbackQuery, bot: Bot):
         prices=prices,
         provider_token="",  # Stars payments: empty string
         payload=payload,
-        currency=Currency.XTR,  # Telegram Stars
+        currency="XTR",  # Telegram Stars currency
         start_parameter=f"sp_{project_id}_{plan_id}",
     )
     await callback.answer()
@@ -202,7 +202,7 @@ async def _send_invoice(message_or_callback, project_id: str, plan_id: str, bot:
         prices=prices,
         provider_token="",
         payload=payload,
-        currency=Currency.XTR,
+        currency="XTR",  # Telegram Stars currency
         start_parameter=f"sp_{project_id}_{plan_id}",
     )
 

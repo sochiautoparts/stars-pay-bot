@@ -90,12 +90,17 @@ class Database:
                 return dict(row)
 
             ref_code = uuid.uuid4().hex[:8].upper()
-            await db.execute(
-                """INSERT INTO users (user_id, username, first_name, language_code, referral_code, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (user_id, username, first_name, lang, ref_code, time.time())
-            )
-            await db.commit()
+            try:
+                await db.execute(
+                    """INSERT INTO users (user_id, username, first_name, language_code, referral_code, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (user_id, username, first_name, lang, ref_code, time.time())
+                )
+                await db.commit()
+            except Exception:
+                # User already exists (race condition), just fetch
+                await db.rollback()
+                pass
             cursor = await db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
             return dict(await cursor.fetchone())
 
