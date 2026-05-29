@@ -35,6 +35,16 @@
                 year: { price: 999, label: "1 год", days: 365 },
                 lifetime: { price: 2999, label: "Навсегда", days: 0 },
             }
+        },
+        "repokit": {
+            name: "RepoKit Pro",
+            icon: "🚀",
+            description: "30+ шаблонов: Next.js, FastAPI, Go, Rust, Flutter... CI/CD, Docker, тесты",
+            plans: {
+                month: { price: 149, label: "1 месяц", days: 30 },
+                year: { price: 999, label: "1 год", days: 365 },
+                lifetime: { price: 2999, label: "Навсегда", days: 0 },
+            }
         }
     };
 
