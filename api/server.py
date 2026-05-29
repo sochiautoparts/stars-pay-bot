@@ -1,9 +1,10 @@
 """StarsPay REST API — License verification for external projects."""
 import json
 import time
-import asyncio
-import logging
+import hashlib
 import sqlite3
+import logging
+import os
 from flask import Flask, request, jsonify
 from bot.config import config
 from bot.database import db
@@ -20,6 +21,7 @@ def _ensure_db():
     if _db_initialized:
         return
     try:
+        import asyncio
         loop = asyncio.new_event_loop()
         loop.run_until_complete(db.init())
         loop.close()
@@ -30,7 +32,7 @@ def _ensure_db():
 
 
 def _sync_verify_license(key: str) -> dict:
-    """Verify a license key using sync sqlite3 (for Flask)."""
+    """Verify a license key using sync sqlite3."""
     _ensure_db()
     try:
         conn = sqlite3.connect(config.database_path)
@@ -46,7 +48,6 @@ def _sync_verify_license(key: str) -> dict:
         if not license_data["active"]:
             return {"valid": False, "reason": "deactivated"}
 
-        # Check expiration (0 = lifetime)
         if license_data["expires_at"] > 0 and time.time() > license_data["expires_at"]:
             conn = sqlite3.connect(config.database_path)
             conn.execute("UPDATE licenses SET active = 0 WHERE key = ?", (key,))
@@ -61,7 +62,7 @@ def _sync_verify_license(key: str) -> dict:
 
 
 def _sync_check_user_license(user_id: int, project: str) -> dict:
-    """Check if user has active license (sync sqlite3 for Flask)."""
+    """Check if user has active license (sync sqlite3)."""
     _ensure_db()
     try:
         conn = sqlite3.connect(config.database_path)
@@ -93,11 +94,41 @@ def _sync_check_user_license(user_id: int, project: str) -> dict:
         return {"has_license": False, "reason": "error"}
 
 
+def _verify_from_json(key: str) -> dict:
+    """Verify a license key using the public licenses.json file."""
+    json_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "licenses.json")
+    try:
+        with open(json_path, "r") as f:
+            data = json.load(f)
+
+        key_hash = hashlib.sha256(key.encode()).hexdigest()[:16]
+
+        for lic in data.get("licenses", []):
+            if lic.get("key_hash") == key_hash and lic.get("active"):
+                # Check expiration
+                if lic.get("expires_at", 0) > 0 and time.time() > lic["expires_at"]:
+                    return {"valid": False, "reason": "expired"}
+                return {
+                    "valid": True,
+                    "project": lic.get("project"),
+                    "plan": lic.get("plan"),
+                    "expires_at": lic.get("expires_at", 0),
+                    "is_lifetime": lic.get("expires_at", 0) == 0,
+                }
+
+        return {"valid": False, "reason": "key_not_found"}
+    except FileNotFoundError:
+        logger.warning("licenses.json not found, falling back to database")
+        return _sync_verify_license(key)
+    except Exception as e:
+        logger.error(f"JSON verification error: {e}")
+        return {"valid": False, "reason": "error"}
+
+
 def create_api_app() -> Flask:
     """Create and configure Flask API application."""
     app = Flask(__name__)
 
-    # Initialize DB on first request
     @app.before_request
     def init_db():
         _ensure_db()
@@ -122,8 +153,8 @@ def create_api_app() -> Flask:
         if not license_key:
             return jsonify({"error": "missing_key"}), 400
 
+        # Try database first, then JSON fallback
         result = _sync_verify_license(license_key)
-
         if result["valid"]:
             lic = result["license"]
             return jsonify({
@@ -134,14 +165,15 @@ def create_api_app() -> Flask:
                 "is_lifetime": lic["expires_at"] == 0,
             })
         else:
+            # Try JSON file (for cases where DB is empty but JSON has data)
+            json_result = _verify_from_json(license_key)
+            if json_result["valid"]:
+                return jsonify(json_result)
             return jsonify({"valid": False, "reason": result.get("reason", "unknown")})
 
     @app.route("/api/v1/check", methods=["POST"])
     def check_user():
-        """Check if a user has active license.
-        Headers: X-API-Key: <api_key>
-        Body: {"user_id": 12345, "project": "gitmoji-ai"}
-        """
+        """Check if a user has active license."""
         api_key = request.headers.get("X-API-Key", "")
         if api_key not in config.api_keys:
             return jsonify({"error": "invalid_api_key"}), 401
@@ -154,7 +186,6 @@ def create_api_app() -> Flask:
             return jsonify({"error": "missing_user_id"}), 400
 
         result = _sync_check_user_license(int(user_id), project)
-
         if result.get("has_license"):
             lic = result["license"]
             return jsonify({

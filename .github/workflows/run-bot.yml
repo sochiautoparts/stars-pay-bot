@@ -1,29 +1,115 @@
-name: Deploy Bot to Render
+name: StarsPay Bot — 24/7 Runner
 
 on:
+  schedule:
+    # Every 5 minutes — continuous coverage
+    - cron: '*/5 * * * *'
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'bot/**'
-      - 'api/**'
-      - 'requirements.txt'
-      - 'Dockerfile'
 
 jobs:
-  deploy:
+  run-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Trigger Render Deploy Hook
-        if: ${{ secrets.RENDER_DEPLOY_HOOK != '' }}
-        run: |
-          curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
-          echo "Deploy hook triggered"
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
 
-      - name: Render Deploy Info
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore database
+        uses: actions/cache@v4
+        with:
+          path: starspay.db
+          key: starspay-db-v1
+          restore-keys: |
+            starspay-db-
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Restore licenses JSON
+        uses: actions/cache@v4
+        with:
+          path: data/licenses.json
+          key: licenses-json-v1
+          restore-keys: |
+            licenses-json-
+
+      - name: Run bot (4 min session)
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+          API_KEYS: ${{ secrets.API_KEYS }}
+          DATABASE_PATH: starspay.db
+          MINIAPP_URL: https://sochiautoparts.github.io/stars-pay-bot/
+          BOT_RUN_SECONDS: "240"
         run: |
-          echo "To deploy on Render.com:"
-          echo "1. Go to https://render.com/deploy?repo=https://github.com/sochiautoparts/stars-pay-bot"
-          echo "2. Or set RENDER_DEPLOY_HOOK secret to trigger auto-deploy"
+          echo "Starting bot session at $(date)"
+          timeout 250 python -m bot.main || true
+          echo "Bot session ended at $(date)"
+
+      - name: Sync licenses to JSON
+        env:
+          DATABASE_PATH: starspay.db
+        run: |
+          python3 -c "
+          import sqlite3, json, time, hashlib, os
+
+          db_path = os.getenv('DATABASE_PATH', 'starspay.db')
+          if not os.path.exists(db_path):
+              print('No database found, skipping sync')
+              exit(0)
+
+          conn = sqlite3.connect(db_path)
+          conn.row_factory = sqlite3.Row
+
+          cursor = conn.execute('''
+              SELECT l.key, l.user_id, l.project, l.plan, l.activated_at, l.expires_at, l.active
+              FROM licenses l
+          ''')
+          licenses = []
+          for row in cursor.fetchall():
+              d = dict(row)
+              # Store hash instead of plain key for security
+              key = d.pop('key', '')
+              d['key_hash'] = hashlib.sha256(key.encode()).hexdigest()[:16]
+              d['key_prefix'] = key[:7] + '...'  # SP-GMA-... for display
+              licenses.append(d)
+
+          output = {
+              'updated_at': time.time(),
+              'updated_at_human': time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
+              'total_licenses': len(licenses),
+              'active_licenses': sum(1 for l in licenses if l['active']),
+              'licenses': licenses
+          }
+
+          os.makedirs('data', exist_ok=True)
+          with open('data/licenses.json', 'w') as f:
+              json.dump(output, f, indent=2, ensure_ascii=False)
+
+          print(f'Synced {len(licenses)} licenses to data/licenses.json')
+          conn.close()
+          "
+
+      - name: Commit licenses to repo
+        run: |
+          git config user.name "StarsPay Bot"
+          git config user.email "starspay-bot[bot]@users.noreply.github.com"
+          git add data/licenses.json -f
+          git diff --cached --quiet || git commit -m "📦 Update licenses [skip ci]"
+          git push
+
+      - name: Save database cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: starspay.db
+          key: starspay-db-v1-${{ github.run_id }}
