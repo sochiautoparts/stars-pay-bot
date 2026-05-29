@@ -12,61 +12,55 @@
 - 👥 **Реферальная программа** — бонусы за приглашения
 - 👑 **Админ-панель** — статистика и управление
 
-## 🚀 Быстрый старт
+## 🚀 Быстрый старт — Deploy на Render.com
 
-### Развертывание на Render.com (бесплатно)
+**Render.com** — бесплатный хостинг для бота (24/7). Деплой за 3 минуты:
 
-1. Зарегистрируйтесь на [Render.com](https://render.com) (бесплатно)
-2. Нажмите **Deploy to Render**:
+### Шаг 1: Регистрация
+1. Перейдите на [render.com](https://render.com)
+2. Зарегистрируйтесь через GitHub
+
+### Шаг 2: Создание сервиса
+1. Нажмите **New** → **Web Service**
+2. Подключите репозиторий `sochiautoparts/stars-pay-bot`
+3. Или нажмите кнопку:
    [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sochiautoparts/stars-pay-bot)
 
-3. Установите переменные окружения:
-   - `BOT_TOKEN` — токен бота от @BotFather
-   - `ADMIN_IDS` — ваш Telegram ID
-   - `API_KEYS` — ключи для REST API (через запятую)
+### Шаг 3: Настройка переменных
+Установите следующие **Environment Variables**:
 
-4. Готово! Бот запущен 24/7.
+| Переменная | Значение |
+|-----------|----------|
+| `BOT_TOKEN` | Токен от @BotFather |
+| `ADMIN_IDS` | Ваш Telegram ID |
+| `API_KEYS` | API ключ (например: `sk_starspay_xxx`) |
+| `DATABASE_PATH` | `/opt/render/project/src/data/starspay.db` |
 
-### Локально с Docker
-
-```bash
-# Клонируйте репозиторий
-git clone https://github.com/sochiautoparts/stars-pay-bot.git
-cd stars-pay-bot
-
-# Создайте .env файл
-echo "BOT_TOKEN=ваш_токен" > .env
-echo "ADMIN_IDS=ваш_id" >> .env
-echo "API_KEYS=ваш_api_key" >> .env
-
-# Запустите
-docker compose up -d
-```
-
-### Локально без Docker
-
-```bash
-pip install -r requirements.txt
-export BOT_TOKEN="ваш_токен"
-export ADMIN_IDS="ваш_id"
-python -m bot.main
-```
+### Шаг 4: Deploy
+Нажмите **Create Web Service**. Бот запустится автоматически!
 
 ## 🌐 Mini App
 
 Mini App доступен по адресу: **https://sochiautoparts.github.io/stars-pay-bot/**
 
-Для подключения к боту:
-1. Откройте @BotFather
-2. Выберите `/newapp` или отредактируйте меню бота
-3. Укажите URL: `https://sochiautoparts.github.io/stars-pay-bot/`
+### Подключение к боту:
+1. Откройте **@BotFather**
+2. Отправьте `/newapp`
+3. Выберите **@allstarspay_bot**
+4. Укажите:
+   - **Title**: `StarsPay`
+   - **Description**: `Магазин подписок`
+   - **URL**: `https://sochiautoparts.github.io/stars-pay-bot/`
 
 ## 🔗 REST API
+
+После деплоя на Render ваш API будет доступен по адресу:
+`https://starspay-bot.onrender.com` (или ваш кастомный URL)
 
 ### Проверка лицензии
 
 ```bash
-curl -X POST https://ваш-бот.render.com/api/v1/verify \
+curl -X POST https://starspay-bot.onrender.com/api/v1/verify \
   -H "X-API-Key: ваш_api_key" \
   -H "Content-Type: application/json" \
   -d '{"key": "SP-GMA-A1B2-C3D4"}'
@@ -86,7 +80,7 @@ curl -X POST https://ваш-бот.render.com/api/v1/verify \
 ### Проверка пользователя
 
 ```bash
-curl -X POST https://ваш-бот.render.com/api/v1/check \
+curl -X POST https://starspay-bot.onrender.com/api/v1/check \
   -H "X-API-Key: ваш_api_key" \
   -H "Content-Type: application/json" \
   -d '{"user_id": 12345, "project": "gitmoji-ai"}'
@@ -95,17 +89,17 @@ curl -X POST https://ваш-бот.render.com/api/v1/check \
 ### Список проектов
 
 ```bash
-curl https://ваш-бот.render.com/api/v1/projects
+curl https://starspay-bot.onrender.com/api/v1/projects
 ```
 
 ## 🔧 Интеграция с проектами
 
-### Python
+### Python (GitMoji AI)
 
 ```python
 import requests
 
-STARSPAY_API = "https://ваш-бот.render.com"
+STARSPAY_API = "https://starspay-bot.onrender.com"
 STARSPAY_KEY = "ваш_api_key"
 
 def check_license(key: str) -> bool:
@@ -124,7 +118,7 @@ def check_license(key: str) -> bool:
   env:
     LICENSE_KEY: ${{ secrets.LICENSE_KEY }}
   run: |
-    VALID=$(curl -s -X POST https://ваш-бот.render.com/api/v1/verify \
+    VALID=$(curl -s -X POST https://starspay-bot.onrender.com/api/v1/verify \
       -H "X-API-Key: ${{ secrets.STARSPAY_API_KEY }}" \
       -H "Content-Type: application/json" \
       -d "{\"key\": \"$LICENSE_KEY\"}" | jq -r '.valid')
@@ -148,6 +142,7 @@ stars-pay-bot/
 ├── bot/              # Telegram Bot (aiogram 3.x)
 │   ├── main.py       # Точка входа
 │   ├── handlers.py   # Обработчики команд и платежей
+│   ├── middleware.py  # Обработка ошибок
 │   ├── database.py   # SQLite база данных
 │   └── config.py     # Конфигурация
 ├── api/              # REST API (Flask)
@@ -165,14 +160,14 @@ stars-pay-bot/
 
 ## ⚙️ Переменные окружения
 
-| Переменная | Описание | По умолчанию |
-|-----------|----------|--------------|
-| `BOT_TOKEN` | Токен Telegram бота | — |
-| `ADMIN_IDS` | ID администраторов | 265070804 |
-| `API_KEYS` | API ключи (через запятую) | — |
-| `API_PORT` | Порт REST API | 8080 |
-| `DATABASE_PATH` | Путь к БД SQLite | starspay.db |
-| `MINIAPP_URL` | URL Mini App | https://sochiautoparts.github.io/stars-pay-bot/ |
+| Переменная | Описание | Обязательная |
+|-----------|----------|-------------|
+| `BOT_TOKEN` | Токен Telegram бота | ✅ Да |
+| `ADMIN_IDS` | ID администраторов | ✅ Да |
+| `API_KEYS` | API ключи (через запятую) | ✅ Да |
+| `PORT` | Порт REST API (Render) | Нет (8080) |
+| `DATABASE_PATH` | Путь к БД SQLite | Нет |
+| `MINIAPP_URL` | URL Mini App | Нет |
 
 ## 📜 Лицензия
 
