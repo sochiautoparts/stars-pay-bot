@@ -6,6 +6,12 @@ on:
     - cron: '0 */5 * * *'
   workflow_dispatch:
 
+# Один инстанс бота: cron-перезапуск гасит старый run (кэш БД сохраняется if:always)
+# Без этого два инстанса воюют за getUpdates → Telegram 409 Conflict, потеря апдейтов
+concurrency:
+  group: starspay-bot-single
+  cancel-in-progress: true
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
