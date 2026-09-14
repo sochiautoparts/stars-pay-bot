@@ -30,6 +30,17 @@ async def main():
     await db.init()
     logger.info("Database initialized")
 
+    # Load admin-defined projects/plans so they survive restarts
+    # (custom entries override defaults with the same project_id)
+    try:
+        custom_products = await db.load_custom_products()
+        for pid, product in custom_products.items():
+            config.products[pid] = product
+        if custom_products:
+            logger.info(f"Loaded {len(custom_products)} custom product(s) from database")
+    except Exception as e:
+        logger.error(f"Failed to load custom products: {e}")
+
     # Start API server in background thread
     from api.server import create_api_app
     api_app = create_api_app()

@@ -14,6 +14,34 @@ logger = logging.getLogger(__name__)
 # Track if DB is initialized
 _db_initialized = False
 
+# Cache of API keys added via /addapikey (stored in the api_keys table).
+# The bot is async (aiosqlite) while Flask is sync, so we read the table
+# directly with the sqlite3 stdlib module and cache the result.
+_db_keys_cache: set = set()
+_db_keys_cached_at: float = 0.0
+_DB_KEYS_TTL = 30.0  # seconds
+
+
+def _load_db_keys_cached() -> set:
+    """Load API keys from the api_keys table (sync sqlite3, cached for 30s)."""
+    global _db_keys_cache, _db_keys_cached_at
+    now = time.time()
+    if now - _db_keys_cached_at < _DB_KEYS_TTL:
+        return _db_keys_cache
+    keys = set()
+    try:
+        conn = sqlite3.connect(config.database_path)
+        cursor = conn.execute("SELECT key FROM api_keys")
+        keys = {row[0] for row in cursor.fetchall()}
+        conn.close()
+    except Exception as e:
+        # Table/DB may not exist yet — keep serving the previous cache
+        logger.error(f"Failed to load API keys from database: {e}")
+        keys = _db_keys_cache
+    _db_keys_cache = keys
+    _db_keys_cached_at = now
+    return _db_keys_cache
+
 
 def _ensure_db():
     """Ensure database is initialized (sync version for Flask)."""
@@ -144,7 +172,7 @@ def create_api_app() -> Flask:
         Body: {"key": "SP-GMA-XXXX-XXXX"}
         """
         api_key = request.headers.get("X-API-Key", "")
-        if api_key not in config.api_keys:
+        if api_key not in config.api_keys and api_key not in _load_db_keys_cached():
             return jsonify({"error": "invalid_api_key"}), 401
 
         data = request.get_json(silent=True) or {}
@@ -175,7 +203,7 @@ def create_api_app() -> Flask:
     def check_user():
         """Check if a user has active license."""
         api_key = request.headers.get("X-API-Key", "")
-        if api_key not in config.api_keys:
+        if api_key not in config.api_keys and api_key not in _load_db_keys_cached():
             return jsonify({"error": "invalid_api_key"}), 401
 
         data = request.get_json(silent=True) or {}

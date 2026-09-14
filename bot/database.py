@@ -2,7 +2,12 @@
 import aiosqlite
 import uuid
 import time
+import json
+import sqlite3
+import logging
 from bot.config import config
+
+logger = logging.getLogger(__name__)
 
 
 class Database:
@@ -14,6 +19,10 @@ class Database:
     async def init(self):
         """Initialize database tables."""
         async with aiosqlite.connect(self.db_path) as db:
+            # WAL persists in the DB file (readers don't block the writer);
+            # busy_timeout guards this connection against lock contention.
+            await db.execute("PRAGMA journal_mode=WAL;")
+            await db.execute("PRAGMA busy_timeout=5000;")
             await db.executescript("""
                 CREATE TABLE IF NOT EXISTS users (
                     user_id INTEGER PRIMARY KEY,
@@ -65,11 +74,31 @@ class Database:
                     PRIMARY KEY (referrer_id, referred_id)
                 );
 
+                CREATE TABLE IF NOT EXISTS custom_products (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    data TEXT NOT NULL,
+                    created_at REAL
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_licenses_user ON licenses(user_id);
                 CREATE INDEX IF NOT EXISTS idx_licenses_project ON licenses(project);
                 CREATE INDEX IF NOT EXISTS idx_licenses_active ON licenses(active);
                 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_licenses_key ON licenses(key);
             """)
+            # Payment idempotency guard. May fail on legacy databases that
+            # already contain duplicate charge ids — non-fatal, the explicit
+            # get_payment_by_charge_id() check still protects the flow.
+            try:
+                await db.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_charge "
+                    "ON payments(telegram_charge_id)"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Could not create unique index on payments.telegram_charge_id "
+                    f"(legacy duplicates?): {e}"
+                )
             await db.commit()
 
     async def get_or_create_user(self, user_id: int, username: str = None,
@@ -122,22 +151,31 @@ class Database:
         product = products.get(project, {})
         prefix = product.get("prefix", "GEN")
 
-        key = await self.generate_license_key(prefix)
         now = time.time()
-
-        async with aiosqlite.connect(self.db_path) as db:
-            # Deactivate old licenses for same user+project
-            await db.execute(
-                "UPDATE licenses SET active = 0 WHERE user_id = ? AND project = ? AND active = 1",
-                (user_id, project)
-            )
-            await db.execute(
-                """INSERT INTO licenses (key, user_id, project, plan, activated_at, expires_at, active)
-                   VALUES (?, ?, ?, ?, ?, ?, 1)""",
-                (key, user_id, project, plan, now, expires_at, )
-            )
-            await db.commit()
-        return key
+        last_err = None
+        # The uniqueness check in generate_license_key() and the INSERT run in
+        # different connections (TOCTOU) — retry on IntegrityError collisions.
+        for _attempt in range(3):
+            key = await self.generate_license_key(prefix)
+            try:
+                async with aiosqlite.connect(self.db_path) as db:
+                    # Deactivate old licenses for same user+project
+                    await db.execute(
+                        "UPDATE licenses SET active = 0 WHERE user_id = ? AND project = ? AND active = 1",
+                        (user_id, project)
+                    )
+                    await db.execute(
+                        """INSERT INTO licenses (key, user_id, project, plan, activated_at, expires_at, active)
+                           VALUES (?, ?, ?, ?, ?, ?, 1)""",
+                        (key, user_id, project, plan, now, expires_at)
+                    )
+                    await db.commit()
+                return key
+            except sqlite3.IntegrityError as e:
+                # Astronomically unlikely key collision — regenerate and retry
+                last_err = e
+                logger.warning(f"License key collision for {prefix} (attempt {_attempt + 1}): {e}")
+        raise RuntimeError(f"Failed to generate a unique license key after 3 attempts: {last_err}")
 
     async def verify_license(self, key: str) -> dict:
         """Verify a license key. Returns license info or None."""
@@ -198,6 +236,55 @@ class Database:
                  license_key, time.time())
             )
             await db.commit()
+
+    async def get_payment_by_charge_id(self, charge_id: str):
+        """Find an already-processed payment by Telegram charge id (idempotency)."""
+        if not charge_id:
+            return None
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT * FROM payments WHERE telegram_charge_id = ? LIMIT 1", (charge_id,)
+            )
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def save_custom_product(self, project_id: str, product: dict):
+        """Persist a custom product (added via /addproject or /addplan) so it
+        survives restarts. data = {"project_id": ..., "product": {...}}."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("SELECT id, data FROM custom_products")
+            stale_ids = []
+            for row in await cursor.fetchall():
+                try:
+                    if json.loads(row["data"]).get("project_id") == project_id:
+                        stale_ids.append(row["id"])
+                except Exception:
+                    continue
+            for sid in stale_ids:
+                await db.execute("DELETE FROM custom_products WHERE id = ?", (sid,))
+            await db.execute(
+                "INSERT INTO custom_products (data, created_at) VALUES (?, ?)",
+                (json.dumps({"project_id": project_id, "product": product},
+                            ensure_ascii=False), time.time())
+            )
+            await db.commit()
+
+    async def load_custom_products(self) -> dict:
+        """Load custom products: {project_id: product_dict}."""
+        products = {}
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("SELECT data FROM custom_products")
+            rows = await cursor.fetchall()
+        for row in rows:
+            try:
+                item = json.loads(row["data"])
+                products[item["project_id"]] = item["product"]
+            except Exception as e:
+                logger.warning(f"Skipping corrupted custom_products row: {e}")
+        return products
 
     async def set_referral(self, referrer_id: int, referred_id: int):
         """Record a referral relationship."""

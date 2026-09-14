@@ -2,6 +2,8 @@
 import time
 import uuid
 import logging
+import html
+import sqlite3
 import aiosqlite
 from aiogram import Router, F, Bot
 from aiogram.types import (
@@ -66,7 +68,7 @@ def plans_keyboard(project_id: str) -> InlineKeyboardMarkup:
 # ─── /start command ───
 
 @router.message(CommandStart())
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, bot: Bot):
     """Handle /start command with optional referral code."""
     args = message.text.split(maxsplit=1)
     ref_code = args[1] if len(args) > 1 else None
@@ -95,17 +97,15 @@ async def cmd_start(message: Message):
         if len(parts) >= 3:
             project_id = parts[1]
             plan_id = parts[2]
-            from aiogram import Bot as AiogramBot
-            bot = AiogramBot(token=config.bot_token)
             await _send_invoice(message, project_id, plan_id, bot)
             return
 
     text = (
-        f"👋 Привет, {message.from_user.first_name}!\n\n"
-        f"💎 **StarsPay** — универсальная оплата Telegram Stars\n\n"
+        f"👋 Привет, {html.escape(message.from_user.first_name or '')}!\n\n"
+        f"💎 <b>StarsPay</b> — универсальная оплата Telegram Stars\n\n"
         f"Выберите проект для покупки подписки:"
     )
-    await message.answer(text, reply_markup=projects_keyboard(), parse_mode="Markdown")
+    await message.answer(text, reply_markup=projects_keyboard(), parse_mode="HTML")
 
 
 # ─── Project selection ───
@@ -128,11 +128,11 @@ async def cb_project(callback: CallbackQuery):
         return
 
     text = (
-        f"📦 **{project['name']}**\n\n"
-        f"📝 {project['description']}\n\n"
+        f"📦 <b>{html.escape(project['name'])}</b>\n\n"
+        f"📝 {html.escape(project['description'])}\n\n"
         f"Выберите тариф:"
     )
-    await callback.message.edit_text(text, reply_markup=plans_keyboard(project_id), parse_mode="Markdown")
+    await callback.message.edit_text(text, reply_markup=plans_keyboard(project_id), parse_mode="HTML")
     await callback.answer()
 
 
@@ -180,8 +180,8 @@ async def cb_buy(callback: CallbackQuery, bot: Bot):
     await callback.answer()
 
 
-async def _send_invoice(message_or_callback, project_id: str, plan_id: str, bot: Bot = None):
-    """Send invoice for a purchase."""
+async def _send_invoice(message_or_callback, project_id: str, plan_id: str, bot: Bot):
+    """Send invoice for a purchase (uses the Bot instance provided by aiogram DI)."""
     project = config.products.get(project_id)
     if not project:
         return
@@ -192,10 +192,6 @@ async def _send_invoice(message_or_callback, project_id: str, plan_id: str, bot:
     prices = [LabeledPrice(label=plan["label"], amount=plan["price"])]
     payload = f"{project_id}:{plan_id}"
     chat_id = message_or_callback.from_user.id
-
-    from aiogram import Bot as AiogramBot
-    if bot is None:
-        bot = AiogramBot(token=config.bot_token)
 
     await bot.send_invoice(
         chat_id=chat_id,
@@ -249,6 +245,19 @@ async def successful_payment(message: Message):
     if not plan:
         return
 
+    # Idempotency: Telegram may redeliver successful_payment updates —
+    # never issue a second license for the same charge id.
+    existing = await db.get_payment_by_charge_id(payment.telegram_payment_charge_id)
+    if existing:
+        logger.info(
+            f"Payment {payment.telegram_payment_charge_id} already processed — skipping"
+        )
+        await message.answer(
+            "✅ Этот платёж уже обработан — лицензия уже выдана.\n"
+            "🔑 Ключ доступен в разделе «Мои лицензии»."
+        )
+        return
+
     # Calculate expiration
     now = time.time()
     if plan["days"] > 0:
@@ -264,16 +273,22 @@ async def successful_payment(message: Message):
         expires_at=expires_at,
     )
 
-    # Record payment
-    await db.record_payment(
-        user_id=message.from_user.id,
-        project=project_id,
-        plan=plan_id,
-        stars=plan["price"],
-        tg_charge_id=payment.telegram_payment_charge_id,
-        provider_charge_id=payment.provider_payment_charge_id or "",
-        license_key=license_key,
-    )
+    # Record payment (total_amount is the authoritative charged amount)
+    try:
+        await db.record_payment(
+            user_id=message.from_user.id,
+            project=project_id,
+            plan=plan_id,
+            stars=payment.total_amount,
+            tg_charge_id=payment.telegram_payment_charge_id,
+            provider_charge_id=payment.provider_payment_charge_id or "",
+            license_key=license_key,
+        )
+    except sqlite3.IntegrityError:
+        # Same charge id recorded concurrently — already processed
+        logger.warning(
+            f"Payment {payment.telegram_payment_charge_id} recorded concurrently — skipping"
+        )
 
     # Process referral bonus
     user = await db.get_or_create_user(message.from_user.id)
@@ -291,9 +306,9 @@ async def successful_payment(message: Message):
 
     text = (
         f"✅ Оплата прошла успешно!\n\n"
-        f"📦 Проект: <b>{project['name']}</b>\n"
-        f"📋 Тариф: <b>{plan['label']}</b>\n"
-        f"🔑 Лицензионный ключ:\n<code>{license_key}</code>\n\n"
+        f"📦 Проект: <b>{html.escape(project['name'])}</b>\n"
+        f"📋 Тариф: <b>{html.escape(plan['label'])}</b>\n"
+        f"🔑 Лицензионный ключ:\n<code>{html.escape(license_key)}</code>\n\n"
         f"{expires_text}\n\n"
         f"💡 Используйте этот ключ для активации в проекте.\n"
         f"🔑 Ключ также доступен в разделе «Мои лицензии»"
@@ -312,7 +327,7 @@ async def cb_my_licenses(callback: CallbackQuery):
     if not licenses:
         text = "🔑 У вас пока нет активных лицензий.\n\nКупите подписку в разделе «Выбрать проект»"
     else:
-        lines = ["🔑 **Ваши лицензии:**\n"]
+        lines = ["🔑 <b>Ваши лицензии:</b>\n"]
         for lic in licenses:
             project = config.products.get(lic["project"], {})
             project_name = project.get("name", lic["project"])
@@ -325,15 +340,15 @@ async def cb_my_licenses(callback: CallbackQuery):
             else:
                 exp_text = "бессрочно"
 
-            lines.append(f"• **{project_name}** ({plan_label}) — {exp_text}")
-            lines.append(f"  Ключ: `{lic['key']}`\n")
+            lines.append(f"• <b>{html.escape(project_name)}</b> ({html.escape(plan_label)}) — {exp_text}")
+            lines.append(f"  Ключ: <code>{html.escape(lic['key'])}</code>\n")
 
         text = "\n".join(lines)
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")
     ]])
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 
@@ -349,16 +364,16 @@ async def cb_referral(callback: CallbackQuery):
     ref_link = f"https://t.me/allstarspay_bot?start={ref_code}"
 
     text = (
-        f"👥 **Реферальная программа**\n\n"
-        f"🔗 Ваша ссылка:\n`{ref_link}`\n\n"
-        f"📊 Приглашено: **{stats['referrals']}** пользователей\n"
+        f"👥 <b>Реферальная программа</b>\n\n"
+        f"🔗 Ваша ссылка:\n<code>{ref_link}</code>\n\n"
+        f"📊 Приглашено: <b>{stats['referrals']}</b> пользователей\n"
         f"💎 Бонус: {config.referral_bonus_stars} ⭐ за каждого\n\n"
         f"Отправьте ссылку друзьям — получите звёзды!"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
     ])
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 
@@ -373,7 +388,7 @@ async def cmd_admin(message: Message):
     stats = await db.get_admin_stats()
 
     text = (
-        f"👑 **StarsPay Admin**\n\n"
+        f"👑 <b>StarsPay Admin</b>\n\n"
         f"👥 Пользователей: {stats['total_users']}\n"
         f"🔑 Активных лицензий: {stats['active_licenses']}\n"
         f"⭐ Всего звёзд: {stats['total_stars']}\n\n"
@@ -382,9 +397,9 @@ async def cmd_admin(message: Message):
         text += "📊 По проектам:\n"
         for proj, count in stats["by_project"].items():
             name = config.products.get(proj, {}).get("name", proj)
-            text += f"  • {name}: {count}\n"
+            text += f"  • {html.escape(name)}: {count}\n"
 
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text, parse_mode="HTML")
 
 
 @router.message(Command("addproject"))
@@ -396,8 +411,8 @@ async def cmd_addproject(message: Message):
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
         await message.answer(
-            "Формат: `/addproject id|Название|Описание|PREFIX`",
-            parse_mode="Markdown"
+            "Формат: <code>/addproject id|Название|Описание|PREFIX</code>",
+            parse_mode="HTML"
         )
         return
 
@@ -413,7 +428,18 @@ async def cmd_addproject(message: Message):
         "plans": {},
         "prefix": prefix,
     }
-    await message.answer(f"✅ Проект «{name}» добавлен (id: {proj_id})")
+    # Persist so the project survives restarts
+    try:
+        await db.save_custom_product(proj_id, config.products[proj_id])
+        await message.answer(
+            f"✅ Проект «{html.escape(name)}» добавлен (id: {html.escape(proj_id)})"
+        )
+    except Exception as e:
+        logger.error(f"Failed to persist project {proj_id}: {e}")
+        await message.answer(
+            f"⚠️ Проект «{html.escape(name)}» добавлен до перезапуска, "
+            f"но не сохранён в БД: {html.escape(str(e))}"
+        )
 
 
 @router.message(Command("addplan"))
@@ -424,7 +450,7 @@ async def cmd_addplan(message: Message):
 
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer("Формат: `/addplan project|plan|Название|цена|дни`", parse_mode="Markdown")
+        await message.answer("Формат: <code>/addplan project|plan|Название|цена|дни</code>", parse_mode="HTML")
         return
 
     parts = args[1].split("|")
@@ -436,7 +462,7 @@ async def cmd_addplan(message: Message):
     price, days = int(parts[3]), int(parts[4])
 
     if proj_id not in config.products:
-        await message.answer(f"Проект {proj_id} не найден")
+        await message.answer(f"Проект {html.escape(proj_id)} не найден")
         return
 
     config.products[proj_id]["plans"][plan_id] = {
@@ -444,7 +470,18 @@ async def cmd_addplan(message: Message):
         "label": label,
         "days": days,
     }
-    await message.answer(f"✅ Тариф «{label}» добавлен в {config.products[proj_id]['name']}")
+    # Persist so the plan survives restarts
+    try:
+        await db.save_custom_product(proj_id, config.products[proj_id])
+        await message.answer(
+            f"✅ Тариф «{html.escape(label)}» добавлен в {html.escape(config.products[proj_id]['name'])}"
+        )
+    except Exception as e:
+        logger.error(f"Failed to persist plan {proj_id}/{plan_id}: {e}")
+        await message.answer(
+            f"⚠️ Тариф «{html.escape(label)}» добавлен до перезапуска, "
+            f"но не сохранён в БД: {html.escape(str(e))}"
+        )
 
 
 @router.message(Command("genkey"))
@@ -455,7 +492,7 @@ async def cmd_genkey(message: Message):
 
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer("Формат: `/genkey project|plan|user_id`", parse_mode="Markdown")
+        await message.answer("Формат: <code>/genkey project|plan|user_id</code>", parse_mode="HTML")
         return
 
     parts = args[1].split("|")
@@ -468,18 +505,18 @@ async def cmd_genkey(message: Message):
 
     project = config.products.get(project_id)
     if not project:
-        await message.answer(f"Проект {project_id} не найден")
+        await message.answer(f"Проект {html.escape(project_id)} не найден")
         return
     plan = project["plans"].get(plan_id)
     if not plan:
-        await message.answer(f"Тариф {plan_id} не найден")
+        await message.answer(f"Тариф {html.escape(plan_id)} не найден")
         return
 
     now = time.time()
     expires_at = now + (plan["days"] * 86400) if plan["days"] > 0 else 0
 
     key = await db.create_license(target_user_id, project_id, plan_id, expires_at)
-    await message.answer(f"✅ Ключ создан: `{key}`", parse_mode="Markdown")
+    await message.answer(f"✅ Ключ создан: <code>{html.escape(key)}</code>", parse_mode="HTML")
 
 
 @router.message(Command("addapikey"))
@@ -490,7 +527,7 @@ async def cmd_addapikey(message: Message):
 
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer("Формат: `/addapikey project|описание`", parse_mode="Markdown")
+        await message.answer("Формат: <code>/addapikey project|описание</code>", parse_mode="HTML")
         return
 
     parts = args[1].split("|")
@@ -500,8 +537,8 @@ async def cmd_addapikey(message: Message):
     key = f"sk_{uuid.uuid4().hex[:24]}"
     await db.add_api_key(key, project_id, description)
     await message.answer(
-        f"✅ API ключ для **{project_id}**:\n`{key}`",
-        parse_mode="Markdown"
+        f"✅ API ключ для {html.escape(project_id)}:\n<code>{key}</code>",
+        parse_mode="HTML"
     )
 
 
